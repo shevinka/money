@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>스마트폰용: 카메라 OCR + 음성 금액 기록기</title>
+<link rel="icon" href="data:;base64,=" />
+<style>
+  :root{--accent:#0ea5a4;--bg:#0f172a;--card:#0b1220;--text:#e6eef6}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071028 0%, #07182b 100%);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR","Apple SD Gothic Neo",Roboto,'Segoe UI',sans-serif}
+  .container{display:flex;flex-direction:column;height:100vh;padding:8px;gap:8px}
+  .home{display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center}
+  button.primary{background:var(--accent);color:#012; border:none;padding:14px 22px;border-radius:12px;font-size:18px}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.08);padding:12px 18px;border-radius:12px;color:var(--text)}
+  .app{display:none;flex-direction:column;height:100%;gap:8px}
+  .top{flex:1;display:flex;flex-direction:column;gap:6px}
+  .camera-wrap{position:relative;flex:1;border-radius:14px;overflow:hidden;background:#000}
+  video#camera{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .ocr-overlay{position:absolute;left:0;right:0;top:0;padding:8px;backdrop-filter: blur(4px);background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.10));color:#fff}
+  .ocr-text{font-size:18px;font-weight:600}
+  .ocr-hanja{font-size:13px;color:#ffd27a;margin-left:6px}
+  .ocr-actions{display:flex;gap:6px;margin-top:8px}
+  .ocr-actions button{flex:1;padding:8px;border-radius:10px;border:none}
+  .controls{display:flex;gap:8px}
+  .records{height:280px;overflow:auto;background:rgba(255,255,255,0.03);border-radius:12px;padding:8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);font-size:14px}
+  .fixed-sum{position:fixed;right:12px;bottom:98px;background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:12px;font-weight:700}
+  .bigview-btn{position:fixed;right:12px;bottom:12px;background:var(--accent);width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center}
+  .card{background:var(--card);padding:12px;border-radius:12px;max-width:720px;width:94%}
+  .hidden{display:none}
+  .edit-input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
+  @media(min-width:700px){.container{max-width:700px;margin:0 auto}}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- START HOME -->
+  <div id="home" class="home">
+    <h1>간편 금액 기록기</h1>
+    <div style="display:flex;gap:12px;">
+      <button id="startBtn" class="primary">시작</button>
+      <button id="continueBtn" class="ghost">이어하기</button>
+    </div>
+    <p style="opacity:0.8;font-size:13px;max-width:360px;text-align:center">스마트폰 전용. 카메라로 이름(한글/한자)을 읽고, 음성으로 금액을 입력하면 자동으로 표에 저장됩니다. 데이터는 로컬에 보관됩니다.</p>
+  </div>
+
+  <!-- START APP -->
+  <div id="app" class="app">
+    <div class="top">
+      <div class="camera-wrap" id="cameraWrap">
+        <video id="camera" autoplay playsinline muted></video>
+        <div class="ocr-overlay">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="ocr-text" id="ocrText">카메라를 대면 자동으로 텍스트를 추출합니다</div>
+              <div class="ocr-hanja" id="hanjaHint"></div>
+            </div>
+            <div style="font-size:12px;opacity:0.85">인식결과</div>
+          </div>
+          <div class="ocr-actions">
+            <button id="retryBtn" class="ghost">재시도</button>
+            <button id="manualBtn" class="ghost">직접입력</button>
+            <button id="confirmBtn" class="primary">확인</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:6px;gap:8px;">
+        <button id="captureBtn" class="ghost">캡처 인식</button>
+        <button id="flipBtn" class="ghost">카메라 전환</button>
+        <button id="stopCamBtn" class="ghost">카메라 끄기</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="records" id="records">
+        <table id="table">
+          <thead>
+            <tr><th style="width:48px">#</th><th>이름 (텍스트)</th><th style="width:110px">금액</th><th style="width:90px">비고</th><th style="width:80px">관리</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="fixed-sum" id="sumBox">현재 합계: 0 원</div>
+  <button class="bigview-btn" id="bigViewBtn">표</button>
+</div>
+
+<!-- MODALS -->
+<div id="confirmModal" class="modal hidden">
+  <div class="card">
+    <p id="confirmMessage">이전 데이터가 있습니다. 정말로 다시 시작하시겠습니까?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button id="modalCancel" class="ghost">취소</button>
+      <button id="modalOk" class="primary">확인</button>
+    </div>
+  </div>
+</div>
+
+<div id="manualModal" class="modal hidden">
+  <div class="card">
+    <label>인식 텍스트 수정 (한글/한자 가능)</label>
+    <input id="manualInput" class="edit-input" />
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button id="manualCancel" class="ghost">취소</button>
+      <button id="manualOk" class="primary">확인</button>
+    </div>
+  </div>
+</div>
+
+<div id="bigView" class="modal hidden">
+  <div class="card">
+    <h3>기록표 (확대)</h3>
+    <div style="max-height:60vh;overflow:auto;margin:8px 0;">
+      <table id="bigTable">
+        <thead>
+          <tr><th>#</th><th>이름</th><th>금액</th><th>비고</th><th>관리</th></tr>
+        </thead>
+        <tbody id="bigTbody"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px">
+      <button id="backToMain" class="ghost">원래화면으로 돌아가기</button>
+      <div style="display:flex;gap:8px">
+        <button id="saveExcel" class="primary">저장하기 (엑셀)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- hidden canvas for capture -->
+<canvas id="captureCanvas" class="hidden"></canvas>
+
+<!-- Tesseract.js, SheetJS (xlsx) CDN -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<script>
+// ===== app logic =====
+const startBtn = document.getElementById('startBtn');
+const continueBtn = document.getElementById('continueBtn');
+const home = document.getElementById('home');
+const app = document.getElementById('app');
+const camera = document.getElementById('camera');
+const captureCanvas = document.getElementById('captureCanvas');
+const ocrText = document.getElementById('ocrText');
+const hanjaHint = document.getElementById('hanjaHint');
+const retryBtn = document.getElementById('retryBtn');
+const manualBtn = document.getElementById('manualBtn');
+const confirmBtn = document.getElementById('confirmBtn');
+const captureBtn = document.getElementById('captureBtn');
+const flipBtn = document.getElementById('flipBtn');
+const stopCamBtn = document.getElementById('stopCamBtn');
+const tbody = document.getElementById('tbody');
+const records = document.getElementById('records');
+const sumBox = document.getElementById('sumBox');
+const bigViewBtn = document.getElementById('bigViewBtn');
+const bigView = document.getElementById('bigView');
+const bigTbody = document.getElementById('bigTbody');
+const backToMain = document.getElementById('backToMain');
+const saveExcel = document.getElementById('saveExcel');
+const confirmModal = document.getElementById('confirmModal');
+const modalOk = document.getElementById('modalOk');
+const modalCancel = document.getElementById('modalCancel');
+const manualModal = document.getElementById('manualModal');
+const manualInput = document.getElementById('manualInput');
+const manualOk = document.getElementById('manualOk');
+const manualCancel = document.getElementById('manualCancel');
+
+let entries = []; // {name, nameHanjaReading?, amount, note}
+let stream = null;
+let usingFront = true;
+let lastRecognized = '';
+let pendingName = null; // when confirmed, then start voice amount
+
+// storage key
+const STORAGE_KEY = 'money_recorder_v1';
+
+function saveStorage(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+function loadStorage(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return [];
+  try{
+    return JSON.parse(raw);
+  }catch(e){return []}
+}
+
+function showHome(){home.style.display='flex';app.style.display='none'}
+function showApp(){home.style.display='none';app.style.display='flex'}
+
+// initial
+(function(){
+  entries = loadStorage();
+  updateTable();
+})();
+
+startBtn.addEventListener('click', ()=>{
+  const stored = loadStorage();
+  if(stored && stored.length>0){
+    // ask confirmation
+    confirmModal.classList.remove('hidden');
+    modalOk.onclick = ()=>{confirmModal.classList.add('hidden'); entries=[]; saveStorage(); openApp();};
+    modalCancel.onclick = ()=>{confirmModal.classList.add('hidden');};
+  }else{
+    openApp();
+  }
+});
+
+continueBtn.addEventListener('click', ()=>{
+  entries = loadStorage();
+  openApp();
+});
+
+function openApp(){
+  showApp();
+  startCamera();
+}
+
+async function startCamera(){
+  stopCamera();
+  const constraints = {audio:false,video:{facingMode: usingFront? 'environment':'user'}};
+  try{
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    camera.srcObject = stream;
+    await camera.play();
+  }catch(e){alert('카메라 접근 실패: '+e.message)}
+}
+
+flipBtn.addEventListener('click', ()=>{usingFront = !usingFront; startCamera();});
+stopCamBtn.addEventListener('click', ()=>{stopCamera();});
+
+function stopCamera(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  camera.pause();camera.srcObject=null;
+}
+
+// capture and OCR; try original and rotated versions to catch vertical text
+async function doRecognize(){
+  if(!camera.videoWidth) return '';
+  const w = camera.videoWidth, h = camera.videoHeight;
+  captureCanvas.width = w; captureCanvas.height = h;
+  const ctx = captureCanvas.getContext('2d');
+  ctx.drawImage(camera,0,0,w,h);
+  const dataUrl = captureCanvas.toDataURL('image/jpeg',0.9);
+  ocrText.textContent = '인식중... 잠시만요';
+  try{
+    const worker = Tesseract.createWorker({logger: m => {/*console.log(m)*/}});
+    await worker.load();
+    await worker.loadLanguage('kor+eng');
+    await worker.initialize('kor+eng');
+
+    // first try: original
+    let res = await worker.recognize(dataUrl);
+    let text = (res && res.data && res.data.text)? res.data.text.trim(): '';
+
+    // if result seems empty, try rotate 90 / 270 to catch vertical
+    if(!text || text.replace(/\s|\n/g,'').length<2){
+      // rotate 90
+      const c2 = document.createElement('canvas');
+      c2.width = h; c2.height = w; const c2ctx = c2.getContext('2d');
+      c2ctx.translate(h/2,w/2); c2ctx.rotate(Math.PI/2); c2ctx.drawImage(camera,-w/2,-h/2);
+      const d2 = c2.toDataURL('image/jpeg',0.9);
+      const r2 = await worker.recognize(d2);
+      text = (r2 && r2.data && r2.data.text)? r2.data.text.trim(): text;
+      if(!text || text.replace(/\s|\n/g,'').length<2){
+        // rotate 270
+        const c3 = document.createElement('canvas');
+        c3.width = h; c3.height = w; const c3ctx = c3.getContext('2d');
+        c3ctx.translate(h/2,w/2); c3ctx.rotate(-Math.PI/2); c3ctx.drawImage(camera,-w/2,-h/2);
+        const d3 = c3.toDataURL('image/jpeg',0.9);
+        const r3 = await worker.recognize(d3);
+        text = (r3 && r3.data && r3.data.text)? r3.data.text.trim(): text;
+      }
+    }
+
+    await worker.terminate();
+    return text.replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+  }catch(err){
+    console.error(err);return '';
+  }
+}
+
+captureBtn.addEventListener('click', async ()=>{
+  const t = await doRecognize();
+  if(t){lastRecognized = t; showRecognized(t);} else {ocrText.textContent='인식 실패 — 재시도 해보세요';}
+});
+
+// automatically run recognition every few seconds to show live suggestions (but throttle)
+let autoTimer = null;
+function startAutoOCR(){
+  if(autoTimer) clearInterval(autoTimer);
+  autoTimer = setInterval(async ()=>{
+    const t = await doRecognize();
+    if(t && t.length>0 && t!==lastRecognized){ lastRecognized = t; showRecognized(t); }
+  }, 3000);
+}
+
+function showRecognized(text){
+  ocrText.textContent = text;
+  // hanja detection: if contains CJK Unified Ideographs, show hint (we do not have offline hanja->hangul mapping)
+  const hanja = text.match(/[\u4E00-\u9FFF]+/g);
+  if(hanja){
+    hanjaHint.textContent = '한자 포함. (한글 음독은 자동 변환이 제한되어 수동 확인해주세요)';
+  }else hanjaHint.textContent = '';
+}
+
+retryBtn.addEventListener('click', async ()=>{ocrText.textContent='재시도 중...'; const t=await doRecognize(); if(t){lastRecognized=t; showRecognized(t);} else ocrText.textContent='인식 실패';});
+
+manualBtn.addEventListener('click', ()=>{
+  manualInput.value = lastRecognized || '';
+  manualModal.classList.remove('hidden');
+  manualInput.focus();
+});
+manualCancel.addEventListener('click', ()=>{manualModal.classList.add('hidden');});
+manualOk.addEventListener('click', ()=>{
+  const v = manualInput.value.trim(); manualModal.classList.add('hidden'); if(v) onNameConfirmed(v);
+});
+
+confirmBtn.addEventListener('click', ()=>{ const v = lastRecognized.trim(); if(!v){alert('먼저 인식된 텍스트가 필요합니다.');return;} onNameConfirmed(v); });
+
+// When name is confirmed (from OCR or manual), start speech recognition for amount
+async function onNameConfirmed(name){
+  pendingName = name;
+  ocrText.textContent = name + ' → 금액을 말해주세요';
+  // start speech recognition
+  try{
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SpeechRecognition) {alert('이 브라우저는 SpeechRecognition을 지원하지 않습니다.'); return}
+    const rec = new SpeechRecognition();
+    rec.lang = 'ko-KR'; rec.continuous = false; rec.interimResults = false;
+    rec.onresult = (e)=>{
+      const heard = e.results[0][0].transcript.replace(/\s+/g,'');
+      const amount = parseKoreanAmount(heard);
+      if(isNaN(amount) || amount===0){
+        if(/\d+/.test(heard)){
+          const digits = (heard.match(/\d+/g)||[]).join('');
+          entries.push({name:pendingName, amount: Number(digits), note: ''});
+        }else{
+          alert('금액을 인식하지 못했습니다: "'+heard+'"');
+          pendingName = null;
+          return;
+        }
+      }else{
+        entries.push({name:pendingName, amount: amount, note: ''});
+      }
+      saveStorage(); updateTable(); pendingName=null; scrollToBottom();
+    };
+    rec.onerror = (e)=>{alert('음성 인식 에러: '+ e.error); pendingName=null;};
+    rec.start();
+  }catch(e){alert('음성 인식 시작 실패: '+e.message);}
+}
+
+// Korean amount parser: supports digits, '오천오백', '3만2천', '만원', etc.
+function parseKoreanAmount(text){
+  if(!text) return 0;
+  // try to find pure digits first
+  const digits = text.match(/\d{1,}/g);
+  if(digits){ return Number(digits.join('')) }
+  // normalize common patterns
+  text = text.replace(/['"\s]/g,'');
+  // mapping
+  const numMap = {공:0,'영':0,'일':1,'이':2,'삼':3,'사':4,'오':5,'육':6,'칠':7,'팔':8,'구':9};
+  const unitMap = {십:10,백:100,천:1000,만:10000,억:100000000};
+  let total=0, section=0, num=0;
+  for(const ch of text){
+    if(ch in numMap){ num = numMap[ch]; }
+    else if(ch in unitMap){
+      section += (num||1) * unitMap[ch]; num=0;
+      // 만 이상은 section rollup
+      if(ch==='만' || ch==='억'){ total += section; section=0; }
+    } else if(ch==='원' || ch==='원'){
+      continue;
+    } else {
+      // unknown char, skip
+    }
+  }
+  return total + section + (num||0);
+}
+
+function updateTable(){
+  tbody.innerHTML=''; bigTbody.innerHTML='';
+  let sum=0; entries.forEach((e,idx)=>{
+    sum += Number(e.amount||0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${idx+1}</td><td>${escapeHtml(e.name)}</td><td>${(e.amount||0).toLocaleString()}</td><td>${escapeHtml(e.note||'')}</td><td><button data-idx="${idx}" class="editBtn">수정</button></td>`;
+    tbody.appendChild(tr);
+    const tr2 = tr.cloneNode(true);
+    tr2.querySelector('button').addEventListener('click', ()=>{openEdit(idx)});
+    bigTbody.appendChild(tr2);
+  });
+  sumBox.textContent = '현재 합계: ' + sum.toLocaleString() + ' 원';
+}
+
+function escapeHtml(s){return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function openEdit(idx){
+  const e = entries[idx];
+  // create editing row inline
+  const rows = tbody.querySelectorAll('tr');
+  const tr = rows[idx];
+  tr.innerHTML = `
+    <td>${idx+1}</td>
+    <td><input class="edit-input" id="edit_name_${idx}" value="${escapeHtml(e.name)}"></td>
+    <td><input class="edit-input" id="edit_amount_${idx}" value="${e.amount||0}"></td>
+    <td><input class="edit-input" id="edit_note_${idx}" value="${escapeHtml(e.note||'')}"></td>
+    <td><button id="save_${idx}" class="primary">확인</button><button id="cancel_${idx}" class="ghost">취소</button></td>
+  `;
+  document.getElementById(`save_${idx}`).addEventListener('click', ()=>{
+    const n = document.getElementById(`edit_name_${idx}`).value.trim();
+    const a = Number(document.getElementById(`edit_amount_${idx}`).value.replace(/,/g,'')) || 0;
+    const no = document.getElementById(`edit_note_${idx}`).value.trim();
+    entries[idx] = {name:n, amount:a, note:no}; saveStorage(); updateTable(); scrollToBottom();
+  });
+  document.getElementById(`cancel_${idx}`).addEventListener('click', ()=>{updateTable();});
+}
+
+function scrollToBottom(){ setTimeout(()=>{ records.scrollTop = records.scrollHeight; },120); }
+
+bigViewBtn.addEventListener('click', ()=>{ bigView.classList.remove('hidden'); });
+backToMain.addEventListener('click', ()=>{ bigView.classList.add('hidden'); });
+
+saveExcel.addEventListener('click', ()=>{
+  // build sheet from entries
+  const wb = XLSX.utils.book_new();
+  const data = [['#','이름','금액','비고']].concat(entries.map((e,i)=>[i+1,e.name,e.amount,e.note]));
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, '기록');
+  XLSX.writeFile(wb, `records_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.xlsx`);
+});
+
+// helper: when app open start auto OCR
+camera.addEventListener('playing', ()=>{ startAutoOCR(); });
+
+// load entries from storage on openApp
+function openApp_load(){ entries = loadStorage(); updateTable(); }
+
+function openApp(){ showApp(); startCamera(); openApp_load(); }
+
+// listen for page hide to stop camera
+window.addEventListener('pagehide', ()=>{ stopCamera(); });
+
+// export on unload just in case
+window.addEventListener('beforeunload', ()=>{ saveStorage(); });
+
+</script>
+</body>
+</html>
