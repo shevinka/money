@@ -255,7 +255,7 @@ manualOk.addEventListener('click', ()=>{
   XLSX.writeFile(wb, fname);
 });
  */
-document.getElementById("saveExcelBtn").addEventListener("click", async () => {
+document.getElementById("exportBtn").addEventListener("click", async () => {
   try {
     const table = document.querySelector("table");
     if (!table) {
@@ -433,4 +433,5 @@ function scrollToBottom(){ setTimeout(()=>{ const wrap=document.getElementById('
 /* autosave on any change already handled via saveStorage() calls */
 
 /* If user navigates away, save (safety) */
+
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
