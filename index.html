@@ -11,10 +11,10 @@
 </style>
 </head>
 <body>
-<div class="container">
+<div id="container" class="container">
   <div class="header">
     <div class="h-title">간편 음성 금액 기록기</div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div class="btn_wrap">
       <button id="exportBtn" title="엑셀로 저장" class="save-icon"><img src='img/excel-icon.png'></button>
     </div>
   </div>
@@ -68,7 +68,7 @@
       <div style="text-align:center">
         <div style="font-weight:700">음성 입력</div>
         <div class="small" style="margin-bottom:8px">이름(또는 회사명)과 금액을 한 번에 말하세요. 예: "홍길동 오천원"</div>
-        <div class="mic-circle" id="micCircle"><div class="mic-icon">🎤</div></div>
+        <div class="mic-circle" id="micCircle"><div class="mic-icon">🎙️</div></div>
         <div id="voiceStatus" class="small" style="text-align:center">대기 중</div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:center">
           <button id="voiceCancel" class="btn ghost">취소</button>

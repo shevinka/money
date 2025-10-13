@@ -1,6 +1,7 @@
 /* ====== App state ====== */
 const STORAGE_KEY = 'voice_money_recorder_v1';
 let entries = []; // {name, amount:number, note}
+const container = document.getElementById('container');
 const home = document.getElementById('home');
 const app = document.getElementById('app');
 const startBtn = document.getElementById('startBtn');
@@ -37,7 +38,7 @@ function loadStorage(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r
 function clearStorage(){ localStorage.removeItem(STORAGE_KEY); entries=[]; updateUI(); showToast('데이터 초기화됨'); }
 
 function showHome(){ home.style.display='flex'; app.style.display='none'; }
-function showApp(){ home.style.display='none'; app.style.display='flex'; updateUI(); scrollToBottom(); }
+function showApp(){ home.style.display='none'; app.style.display='flex'; container.classList.add('open'); updateUI(); scrollToBottom(); }
 
 function showModal(el){ el.classList.add('show'); el.setAttribute('aria-hidden','false'); }
 function hideModal(el){ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); }
