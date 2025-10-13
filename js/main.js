@@ -255,50 +255,54 @@ manualOk.addEventListener('click', ()=>{
   XLSX.writeFile(wb, fname);
 });
  */
-document.getElementById("saveExcelBtn").addEventListener("click", downloadExcel);
-function downloadExcel() {
-  // 현재 테이블 데이터를 가져옵니다.
-  const table = document.querySelector("table");
-  const rows = Array.from(table.querySelectorAll("tr"));
-  
-  // 데이터를 배열로 변환
-  const data = rows.map(row => 
-    Array.from(row.querySelectorAll("th, td")).map(cell => cell.innerText.trim())
-  );
+document.getElementById("saveExcelBtn").addEventListener("click", async () => {
+  try {
+    const table = document.querySelector("table");
+    if (!table) {
+      alert("저장할 표가 없습니다.");
+      return;
+    }
 
-  // workbook 생성
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  XLSX.utils.book_append_sheet(wb, ws, "기록표");
+    // 표 데이터 수집
+    const rows = Array.from(table.querySelectorAll("tr")).map(tr =>
+      Array.from(tr.querySelectorAll("th, td")).map(td => td.innerText.trim())
+    );
 
-  // workbook을 ArrayBuffer로 변환
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    // 엑셀 시트 생성
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "기록표");
 
-  // Blob 생성 (MIME 타입: binary/octet-stream)
-  const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    // 파일명 자동 생성
+    const filename = "기록표_" + new Date().toISOString().slice(0,10) + ".xlsx";
 
-  // 🔗 직접 다운로드 링크 생성
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
+    // 바이너리 → Blob 변환
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-  // 파일명에 날짜 자동 포함
-  const filename = '기록표_' + new Date().toISOString().slice(0,10) + '.xlsx';
-  a.download = filename;
+    // 🔗 직접 링크 생성
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
 
-  // 링크를 문서에 추가 후 강제 클릭 → 다운로드 실행
-  document.body.appendChild(a);
-  a.click();
+    // iOS 호환: 사용자 동작 내에서 명시적으로 클릭
+    document.body.appendChild(link);
+    link.click();
 
-  // 메모리 정리
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 1000);
+    // 메모리 해제
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 500);
 
-  // 안내 메시지 (iOS용)
-  //alert("다운로드가 완료되었습니다.\n\n'파일' 앱 → '다운로드' 폴더에서 확인하세요.");
-}
+    alert("📁 다운로드가 시작되었습니다.\n\n'파일' 앱 → '다운로드' 폴더에서 확인하세요.");
+
+  } catch (err) {
+    console.error("엑셀 저장 오류:", err);
+    alert("엑셀 파일 저장 중 오류가 발생했습니다.");
+  }
+});
 
 
 /* ====== Helpers: parsing ====== */
