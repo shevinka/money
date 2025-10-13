@@ -274,7 +274,7 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
     XLSX.utils.book_append_sheet(wb, ws, "기록표");
 
     // 파일명 자동 생성
-    const filename = "기록표_" + new Date().toISOString().slice(0,10) + ".xlsx";
+    const filename = "sheet_" + new Date().toISOString().slice(0,10) + ".xlsx";
 
     // 바이너리 → Blob 변환
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -433,5 +433,4 @@ function scrollToBottom(){ setTimeout(()=>{ const wrap=document.getElementById('
 /* autosave on any change already handled via saveStorage() calls */
 
 /* If user navigates away, save (safety) */
-
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
