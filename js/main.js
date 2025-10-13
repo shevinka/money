@@ -191,7 +191,7 @@ voiceBtn.addEventListener('click', ()=>{
 
     // --- 보정 로직 시작 ---
     // 특수 비고 키워드 (추가하고 싶으면 여기 계속 추가 가능)
-    const remarkKeywords = ['계좌이체','이전전달','현금','카드','이체완료','보류','미입금'];
+    const remarkKeywords = ['계좌이체','이전전달','이후전달'];
 
     // 공백 제거한 버전 (띄어쓰기 무시 매칭)
     const norm = transcript.replace(/\s+/g, '');
@@ -252,6 +252,11 @@ voiceBtn.addEventListener('click', ()=>{
 
     console.log("✅ 최종 결과:", final);
     // --- 보정 로직 끝 ---
+    // 이름 끝에 계좌 관련 단어가 남는 경우 제거 및 비고 처리
+    if (/계좌|이체/.test(final.name)) {
+      final.name = final.name.replace(/계좌|이체|계좌이체/g, '').trim();
+      if (!final.note) final.note = '계좌이체';
+    }
 
     // 결과 적용
     if (final && final.name) {
