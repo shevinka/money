@@ -181,24 +181,32 @@ voiceBtn.addEventListener('click', ()=>{
     recognition.start();
   }catch(e){ console.warn(e); }
 
-  recognition.onresult = (ev)=>{
-    const transcript = ev.results[0][0].transcript.trim();
-    // parse into name + amount
-    const parsed = splitNameAndAmount(transcript);
-    if(parsed && parsed.amount>0 && parsed.name){
-      // add entry
-      entries.push({name: parsed.name, amount: parsed.amount, note: ''});
-      saveStorage();
-      hideModal(voiceModal);
-      showToast(`추가: ${parsed.name} — ${parsed.amount.toLocaleString()}원`);
-      scrollToBottom();
-      recognition = null;
-    } else {
-      // failure
-      hideModal(voiceModal);
-      showModal(voiceFailModal);
-    }
-  };
+  recognition.onresult = (ev) => {
+  const transcript = ev.results[0][0].transcript.trim();
+  const parsed = splitNameAndAmount(transcript);
+
+  if (parsed && parsed.name) {
+    entries.push({
+      name: parsed.name,
+      amount: isNaN(parsed.amount) ? 0 : parsed.amount,
+      note: parsed.note || ''
+    });
+    saveStorage();
+    hideModal(voiceModal);
+
+    const msg =
+      parsed.note
+        ? `추가: ${parsed.name} — [${parsed.note}]`
+        : `추가: ${parsed.name} — ${parsed.amount.toLocaleString()}원`;
+    showToast(msg);
+    scrollToBottom();
+    recognition = null;
+  } else {
+    hideModal(voiceModal);
+    showModal(voiceFailModal);
+  }
+};
+
 
   recognition.onerror = (e)=>{
     hideModal(voiceModal);
@@ -236,7 +244,10 @@ manualOk.addEventListener('click', ()=>{
   const amountText = manualAmount.value.trim();
   if(!name){ alert('이름을 입력하세요.'); return; }
   const amount = parseKoreanMoney(amountText);
-  if(isNaN(amount) || amount<=0){ alert('금액을 인식하지 못했습니다. 숫자(예: 5000) 또는 한글(오천원)을 입력하세요.'); return; }
+  if (isNaN(amount) || amount < 0) {
+    alert('금액을 인식하지 못했습니다. 숫자(예: 5000) 또는 한글(오천원)을 입력하세요.');
+    return;
+  }
   entries.push({name, amount, note: ''});
   saveStorage();
   hideModal(manualModal);
@@ -245,17 +256,7 @@ manualOk.addEventListener('click', ()=>{
 });
 
 /* ====== Export (xlsx) ====== */
-/* exportBtn.addEventListener('click', ()=>{
-  if(entries.length===0){ alert('저장된 항목이 없습니다.'); return; }
-  const aoa = [['#','이름','금액','비고']];
-  entries.forEach((e,i)=> aoa.push([i+1, e.name, e.amount, e.note||'']));
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '기록');
-  const fname = `records_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.xlsx`;
-  XLSX.writeFile(wb, fname);
-});
- */
+
 document.getElementById("exportBtn").addEventListener("click", async () => {
   try {
     const table = document.querySelector("table");
@@ -316,51 +317,51 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
    - Try to find the amount token: either digits (e.g. '5000', '5,000', '5천') or Korean money words containing 십/백/천/만/억 or number words.
    - If found, extract numeric value via parseKoreanMoney, and name = rest (trim)
 */
-function splitNameAndAmount(text){
-  if(!text) return null;
-  // remove filler particles
-  let t = text.replace(/\s+/g,' ').trim();
-  // common patterns: '홍길동 5천원', '홍길동 오천원', '회사명 만원', '홍길동 5,000원'
-  // find last occurrence of money-like substring
-  // regex: numeric with optional commas + optional '원', or korean number words + optional '원'
+function splitNameAndAmount(text) {
+  if (!text) return null;
+  let t = text.replace(/\s+/g, ' ').trim();
+
+  // ✅ 비고 전용 단어 목록 (원하는 만큼 추가 가능)
+  const specialRemarkRegex = /(계좌이체|이전전달|이후전달)/;
+
+  // ✅ ① 비고 단어만 포함된 경우
+  if (specialRemarkRegex.test(t)) {
+    const match = t.match(specialRemarkRegex);
+    const remark = match[1];
+    const name = t.replace(specialRemarkRegex, '').trim();
+    return { name: cleanName(name), amount: 0, note: remark };
+  }
+
+  // ✅ ② 일반 금액 인식
   const numericRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*원?|\d+\s*원?)/g;
-  const koreanNumRegex = /([일이삼사오육칠팔구영공십백천만억兆兆]+)\s*원?/g; // expanded for common han-kor digits
-  let match, idx=-1, matchedStr='';
-  // prefer numeric (digits)
+  const koreanNumRegex = /([일이삼사오육칠팔구영공십백천만억]+)\s*원?/g;
+  let match, idx = -1, matchedStr = '';
+
   const numMatches = [...t.matchAll(numericRegex)];
-  if(numMatches.length>0){
-    match = numMatches[numMatches.length-1];
+  if (numMatches.length > 0) {
+    match = numMatches[numMatches.length - 1];
     matchedStr = match[0];
     idx = match.index;
   } else {
     const korMatches = [...t.matchAll(koreanNumRegex)];
-    if(korMatches.length>0){
-      match = korMatches[korMatches.length-1];
+    if (korMatches.length > 0) {
+      match = korMatches[korMatches.length - 1];
       matchedStr = match[0];
       idx = match.index;
     }
   }
-  // Also support phrases like "오천 원", "삼만오천원" without space matched above
-  if(matchedStr){
+
+  if (matchedStr) {
     const before = t.slice(0, idx).trim();
     const amount = parseKoreanMoney(matchedStr);
-    const name = before || t.replace(matchedStr,'').trim();
-    return {name: cleanName(name), amount};
+    const name = before || t.replace(matchedStr, '').trim();
+    return { name: cleanName(name), amount, note: '' };
   } else {
-    // attempt a fallback: if last token contains a number word at the end
-    const parts = t.split(' ');
-    if(parts.length>=2){
-      const last = parts[parts.length-1];
-      const amount = parseKoreanMoney(last);
-      if(!isNaN(amount) && amount>0){
-        const name = parts.slice(0, parts.length-1).join(' ');
-        return {name: cleanName(name), amount};
-      }
-    }
+    // ✅ ③ 이름만 있는 경우 (금액 없이)
+    return { name: cleanName(t), amount: 0, note: '' };
   }
-
-  return null;
 }
+
 
 function cleanName(s){
   if(!s) return '';
