@@ -244,7 +244,7 @@ manualOk.addEventListener('click', ()=>{
 });
 
 /* ====== Export (xlsx) ====== */
-exportBtn.addEventListener('click', ()=>{
+/* exportBtn.addEventListener('click', ()=>{
   if(entries.length===0){ alert('저장된 항목이 없습니다.'); return; }
   const aoa = [['#','이름','금액','비고']];
   entries.forEach((e,i)=> aoa.push([i+1, e.name, e.amount, e.note||'']));
@@ -254,6 +254,52 @@ exportBtn.addEventListener('click', ()=>{
   const fname = `records_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.xlsx`;
   XLSX.writeFile(wb, fname);
 });
+ */
+document.getElementById("saveExcelBtn").addEventListener("click", downloadExcel);
+function downloadExcel() {
+  // 현재 테이블 데이터를 가져옵니다.
+  const table = document.querySelector("table");
+  const rows = Array.from(table.querySelectorAll("tr"));
+  
+  // 데이터를 배열로 변환
+  const data = rows.map(row => 
+    Array.from(row.querySelectorAll("th, td")).map(cell => cell.innerText.trim())
+  );
+
+  // workbook 생성
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, "기록표");
+
+  // workbook을 ArrayBuffer로 변환
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+  // Blob 생성 (MIME 타입: binary/octet-stream)
+  const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+  // 🔗 직접 다운로드 링크 생성
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+
+  // 파일명에 날짜 자동 포함
+  const filename = '기록표_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  a.download = filename;
+
+  // 링크를 문서에 추가 후 강제 클릭 → 다운로드 실행
+  document.body.appendChild(a);
+  a.click();
+
+  // 메모리 정리
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
+
+  // 안내 메시지 (iOS용)
+  //alert("다운로드가 완료되었습니다.\n\n'파일' 앱 → '다운로드' 폴더에서 확인하세요.");
+}
+
 
 /* ====== Helpers: parsing ====== */
 /* Attempt to split '이름+금액' from transcript.
