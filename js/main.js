@@ -182,30 +182,101 @@ voiceBtn.addEventListener('click', ()=>{
   }catch(e){ console.warn(e); }
 
   recognition.onresult = (ev) => {
-  const transcript = ev.results[0][0].transcript.trim();
-  const parsed = splitNameAndAmount(transcript);
+    const transcript = ev.results[0][0].transcript.trim();
+    console.log("🎤 음성 인식 결과:", transcript);
 
-  if (parsed && parsed.name) {
-    entries.push({
-      name: parsed.name,
-      amount: isNaN(parsed.amount) ? 0 : parsed.amount,
-      note: parsed.note || ''
-    });
-    saveStorage();
-    hideModal(voiceModal);
+    // 이름 / 금액 파싱
+    const parsed = splitNameAndAmount(transcript);
+    console.log("🔍 1차 파싱 결과:", parsed);
 
-    const msg =
-      parsed.note
-        ? `추가: ${parsed.name} — [${parsed.note}]`
-        : `추가: ${parsed.name} — ${parsed.amount.toLocaleString()}원`;
-    showToast(msg);
-    scrollToBottom();
-    recognition = null;
-  } else {
-    hideModal(voiceModal);
-    showModal(voiceFailModal);
-  }
-};
+    // --- 보정 로직 시작 ---
+    // 특수 비고 키워드 (추가하고 싶으면 여기 계속 추가 가능)
+    const remarkKeywords = ['계좌이체','이전전달','현금','카드','이체완료','보류','미입금'];
+
+    // 공백 제거한 버전 (띄어쓰기 무시 매칭)
+    const norm = transcript.replace(/\s+/g, '');
+
+    // 발견된 비고 키워드 저장용
+    let foundRemark = '';
+
+    // 키워드 탐색 (띄어쓰기·분절 허용)
+    for (const kw of remarkKeywords) {
+      if (norm.includes(kw)) {
+        foundRemark = kw;
+        break;
+      }
+      // 한 글자씩 떨어진 형태도 허용 ("계 좌 이 체" 등)
+      const chars = kw.split('');
+      let pos = 0, ok = true;
+      for (const ch of chars) {
+        pos = norm.indexOf(ch, pos);
+        if (pos === -1) { ok = false; break; }
+        pos++;
+      }
+      if (ok) {
+        foundRemark = kw;
+        break;
+      }
+    }
+
+    // 기존 파싱 결과 복사
+    let final = {
+      name: parsed?.name || '',
+      amount: parsed?.amount || 0,
+      note: parsed?.note || ''
+    };
+
+    // 🎯 비고 키워드가 인식된 경우 보정 처리
+    if (foundRemark) {
+      // 이름에서 해당 단어 제거
+      final.name = final.name.replace(new RegExp(foundRemark, 'g'), '').trim();
+
+      // 금액이 아주 작거나(1~9원) 0원이면 오인식으로 간주하고 금액=0, 비고 처리
+      if (!final.amount || final.amount <= 9) {
+        final.amount = 0;
+        final.note = foundRemark;
+      } else {
+        // 금액이 명확히 큰 경우에는 비고만 추가
+        final.note = final.note || foundRemark;
+      }
+    }
+
+    // 🎯 혹시 여전히 비고 단어가 들어 있는데 금액만 들어온 경우 처리
+    if ((!final.note || final.note === '') && final.amount > 0 && final.amount <= 9) {
+      if (/계좌|이체|계좌이체/.test(norm)) {
+        final.note = '계좌이체';
+        final.amount = 0;
+        final.name = final.name.replace(/계좌|이체|계좌이체/g, '').trim();
+      }
+    }
+
+    console.log("✅ 최종 결과:", final);
+    // --- 보정 로직 끝 ---
+
+    // 결과 적용
+    if (final && final.name) {
+      entries.push({
+        name: final.name,
+        amount: Number(final.amount) || 0,
+        note: final.note || ''
+      });
+      saveStorage();
+      hideModal(voiceModal);
+
+      // 알림 문구
+      const msg = final.note
+        ? `추가: ${final.name} — [${final.note}]`
+        : `추가: ${final.name} — ${final.amount.toLocaleString()}원`;
+
+      showToast(msg);
+      scrollToBottom();
+      recognition = null;
+    } else {
+      hideModal(voiceModal);
+      showModal(voiceFailModal);
+    }
+  };
+
 
 
   recognition.onerror = (e)=>{
