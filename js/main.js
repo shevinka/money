@@ -263,10 +263,14 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
       return;
     }
 
-    // 표 데이터 수집
-    const rows = Array.from(table.querySelectorAll("tr")).map(tr =>
-      Array.from(tr.querySelectorAll("th, td")).map(td => td.innerText.trim())
-    );
+
+     // 표 데이터 수집 (삭제 버튼 칸 제외)
+    const rows = Array.from(table.querySelectorAll("tr")).map(tr => {
+      const cells = Array.from(tr.querySelectorAll("th, td"));
+      // 🔽 마지막 칸(삭제 버튼)이면 제외
+      cells.pop();
+      return cells.map(td => td.innerText.trim());
+    });
 
     // 엑셀 시트 생성
     const wb = XLSX.utils.book_new();
