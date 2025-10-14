@@ -397,8 +397,8 @@ function splitNameAndAmount(text) {
   if (!text) return null;
   let t = text.replace(/\s+/g, ' ').trim();
 
-  // 🔹 특수 단어 (비고로 분류)
-  const specialRemarkRegex = /(계좌이체|이전전달|이후전달)/;
+  // 🔹 비고로 분류할 단어
+  const specialRemarkRegex = /(계좌이체|이전전달)/;
   const specialMatch = t.match(specialRemarkRegex);
   if (specialMatch) {
     const name = t.replace(specialRemarkRegex, '').trim();
@@ -406,21 +406,30 @@ function splitNameAndAmount(text) {
     return { name: cleanName(name), amount: 0, note };
   }
 
-  // 🔹 금액 인식 (숫자 또는 한글)
+  // 🔹 금액 패턴 감지 (숫자형 또는 한글형)
   const moneyRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*원?|[일이삼사오육칠팔구영공십백천만억조]+원?)/g;
   const matches = [...t.matchAll(moneyRegex)];
+
   if (matches.length > 0) {
     const match = matches[matches.length - 1]; // 마지막 금액 단어
-    const matchedStr = match[0];
+    let matchedStr = match[0];
     const idx = match.index;
-    const before = t.slice(0, idx).trim(); // 이름
-    const amount = parseKoreanMoney(matchedStr);
+    const before = t.slice(0, idx).trim(); // 이름 부분
+    let amount = parseKoreanMoney(matchedStr);
+
+    // 🔹 보정 로직: "천원"을 100원처럼 인식한 경우 (ex. 홍길동 100원 → 실제 천원)
+    if (amount && amount < 1000 && /천원|백원|오백원|이백원/.test(matchedStr)) {
+      if (/천/.test(matchedStr)) amount *= 10;
+      if (/백/.test(matchedStr)) amount *= 10;
+    }
+
     return { name: cleanName(before), amount, note: '' };
   }
 
-  // 🔹 혹시 숫자 없는 입력 (ex: 홍길동만)
+  // 🔹 금액이 전혀 없는 경우
   return { name: cleanName(t), amount: 0, note: '' };
 }
+
 
 
 
