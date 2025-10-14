@@ -394,29 +394,40 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
    - If found, extract numeric value via parseKoreanMoney, and name = rest (trim)
 */
 function splitNameAndAmount(text) {
-  text = text.replace(/\s+/g, '').trim();
+  if (!text) return { name: '', amount: 0, note: '' };
 
-  // 특수 단어(비고용)
-  const specialRemarkRegex = /(계좌이체|이전전달|이후전달)/;
+  // 전처리
+  text = text.replace(/\s+/g, '').trim(); // 모든 공백 제거
+  const specialRemarkRegex = /(계좌이체|이전전달|현금|카드)/;
   const hasRemark = specialRemarkRegex.test(text);
   const remark = hasRemark ? text.match(specialRemarkRegex)[0] : '';
 
-  // 이름과 금액 분리
-  let name = text.replace(/[0-9,]+원?/g, '').replace(specialRemarkRegex, '').trim();
-  let amountMatch = text.match(/([0-9,]+)\s*원?/);
-  let amount = amountMatch ? parseInt(amountMatch[1].replace(/,/g, '')) : 0;
+  // 1️⃣ 한글 금액 단어 (만원, 천원, 백원 등) 탐지
+  const moneyWordRegex = /([0-9,]+원?|[일이삼사오육칠팔구십백천만억]+원?)/;
+  const match = text.match(moneyWordRegex);
 
-  // 🔹 보정 로직 (천원 → 100원 오인식 방지)
-  // 전체 문장에 "천"이라는 단어가 포함되어 있거나, 
-  // 금액이 너무 작고 문장이 길면 (이름+숫자 포함 5자 이상) 천원 단위 보정
-  if ((/천/.test(text) && amount < 1000) || (amount < 500 && text.length > 5)) {
-    amount = amount * 10;
-    console.log('💡 천원단위 보정 적용됨:', amount);
+  let name = '';
+  let amount = 0;
+
+  if (match) {
+    const moneyStr = match[0];
+    const amountPart = moneyStr.replace(/원/g, '');
+    const namePart = text.replace(moneyStr, '').replace(specialRemarkRegex, '');
+
+    name = cleanName(namePart);
+    amount = parseKoreanMoney(amountPart);
+  } else {
+    // 금액 단어가 없으면 remark만 있는 경우 (계좌이체 등)
+    name = text.replace(specialRemarkRegex, '');
+    amount = 0;
   }
 
-  // 💬 디버그 로그
-  console.log("🎤 인식 결과:", { text, name, amount, remark });
+  // 2️⃣ 천원 단위 보정 (예: "홍길동100" → 1000원)
+  if ((/천/.test(text) && amount < 1000) || (amount < 500 && /[1-9]/.test(text))) {
+    amount = amount * 10;
+  }
 
+  console.log("🎤 인식 결과:", { text, name, amount, remark });
   return { name, amount, note: remark };
 }
 
@@ -505,4 +516,4 @@ function scrollToBottom(){ setTimeout(()=>{ const wrap=document.getElementById('
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
 
 
-document.getElementById("test").textContent = "1115";
+document.getElementById("test").textContent = "1124";
