@@ -397,46 +397,31 @@ function splitNameAndAmount(text) {
   if (!text) return null;
   let t = text.replace(/\s+/g, ' ').trim();
 
-  // ✅ 비고 전용 단어 목록 (원하는 만큼 추가 가능)
+  // 🔹 특수 단어 (비고로 분류)
   const specialRemarkRegex = /(계좌이체|이전전달|이후전달)/;
-
-  // ✅ ① 비고 단어만 포함된 경우
-  if (specialRemarkRegex.test(t)) {
-    const match = t.match(specialRemarkRegex);
-    const remark = match[1];
+  const specialMatch = t.match(specialRemarkRegex);
+  if (specialMatch) {
     const name = t.replace(specialRemarkRegex, '').trim();
-    return { name: cleanName(name), amount: 0, note: remark };
+    const note = specialMatch[1];
+    return { name: cleanName(name), amount: 0, note };
   }
 
-  // ✅ ② 일반 금액 인식
-  const numericRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*원?|\d+\s*원?)/g;
-  const koreanNumRegex = /([일이삼사오육칠팔구영공십백천만억]+)\s*원?/g;
-  let match, idx = -1, matchedStr = '';
-
-  const numMatches = [...t.matchAll(numericRegex)];
-  if (numMatches.length > 0) {
-    match = numMatches[numMatches.length - 1];
-    matchedStr = match[0];
-    idx = match.index;
-  } else {
-    const korMatches = [...t.matchAll(koreanNumRegex)];
-    if (korMatches.length > 0) {
-      match = korMatches[korMatches.length - 1];
-      matchedStr = match[0];
-      idx = match.index;
-    }
-  }
-
-  if (matchedStr) {
-    const before = t.slice(0, idx).trim();
+  // 🔹 금액 인식 (숫자 또는 한글)
+  const moneyRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*원?|[일이삼사오육칠팔구영공십백천만억조]+원?)/g;
+  const matches = [...t.matchAll(moneyRegex)];
+  if (matches.length > 0) {
+    const match = matches[matches.length - 1]; // 마지막 금액 단어
+    const matchedStr = match[0];
+    const idx = match.index;
+    const before = t.slice(0, idx).trim(); // 이름
     const amount = parseKoreanMoney(matchedStr);
-    const name = before || t.replace(matchedStr, '').trim();
-    return { name: cleanName(name), amount, note: '' };
-  } else {
-    // ✅ ③ 이름만 있는 경우 (금액 없이)
-    return { name: cleanName(t), amount: 0, note: '' };
+    return { name: cleanName(before), amount, note: '' };
   }
+
+  // 🔹 혹시 숫자 없는 입력 (ex: 홍길동만)
+  return { name: cleanName(t), amount: 0, note: '' };
 }
+
 
 
 function cleanName(s){
