@@ -510,3 +510,6 @@ function scrollToBottom(){ setTimeout(()=>{ const wrap=document.getElementById('
 
 /* If user navigates away, save (safety) */
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
+
+
+document.getElementById("test").textContent = "안녕하세요!";
