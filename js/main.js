@@ -397,7 +397,7 @@ function splitNameAndAmount(text) {
   if (!text) return null;
   let t = text.replace(/\s+/g, ' ').trim();
 
-  // 🔹 비고용 키워드 감지 (계좌이체, 이전전달 등)
+  // 🔹 비고 키워드 처리
   const specialRemarkRegex = /(계좌이체|이전전달)/;
   const specialMatch = t.match(specialRemarkRegex);
   if (specialMatch) {
@@ -406,40 +406,54 @@ function splitNameAndAmount(text) {
     return { name: cleanName(name), amount: 0, note };
   }
 
-  // 🔹 금액 감지 (숫자형 또는 한글형)
-  const moneyRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*원?|[일이삼사오육칠팔구영공십백천만억조]+원?)/g;
+  // 🔹 한글 금액 단어 감지용 정규식
+  const koreanNumberMap = {
+    '영': 0, '공': 0, '일': 1, '이': 2, '삼': 3, '사': 4,
+    '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9
+  };
+  const unitMap = { '십': 10, '백': 100, '천': 1000, '만': 10000 };
+
+  // 🔹 숫자 or 한글금액 추출
+  const moneyRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*원?|[일이삼사오육칠팔구영공십백천만]+원?)/g;
   const matches = [...t.matchAll(moneyRegex)];
   if (matches.length === 0) {
     return { name: cleanName(t), amount: 0, note: '' };
   }
 
-  // 🔹 마지막 금액 항목만 인식
   const match = matches[matches.length - 1];
-  let matchedStr = match[0];
+  const matchedStr = match[0];
   const idx = match.index;
   const before = t.slice(0, idx).trim();
-  let amount = parseKoreanMoney(matchedStr);
 
-  // ---------- 🔧 보정 로직 ----------
-  // iOS 음성인식이 '천원'을 '100 원' 등으로 잘못 인식할 때 보정
-  // 1) '천', '백' 등 한글 단위가 포함되어 있고 숫자가 100 미만이면 10배
-  if (amount > 0 && amount < 1000 && /천|백/.test(t) && /[1-9]0{0,2}/.test(matchedStr)) {
-    amount *= 10;
+  // 🔹 실제 금액 계산
+  let amount = 0;
+  if (/\d/.test(matchedStr)) {
+    // 숫자 형태라면 그냥 숫자 추출
+    amount = parseInt(matchedStr.replace(/[^\d]/g, ''), 10) || 0;
+  } else {
+    // 🔹 한글 숫자 처리 (예: 천원, 오천원, 십만원)
+    let temp = 0, num = 0;
+    for (let ch of matchedStr) {
+      if (koreanNumberMap.hasOwnProperty(ch)) {
+        num = koreanNumberMap[ch];
+      } else if (unitMap.hasOwnProperty(ch)) {
+        temp += (num || 1) * unitMap[ch];
+        num = 0;
+      }
+    }
+    amount = temp + num;
   }
 
-  // 2) transcript 전체에 '천'이 들어있는데 금액이 100~999면 10배
-  if (amount >= 100 && amount < 1000 && /천/.test(t)) {
-    amount *= 10;
-  }
+  // ---------- 🔧 보정 ----------
+  // iOS가 천원 → 100원 으로 인식하는 케이스: 천, 만, 백 등의 단어가 원문에 포함돼 있으면 보정
+  if (amount < 1000 && /천/.test(t)) amount = 1000;
+  if (amount < 10000 && /만/.test(t)) amount = 10000;
+  if (amount < 100 && /백/.test(t)) amount = 100;
+  if (amount < 10 && /십/.test(t)) amount = 10;
 
-  // 3) transcript에 '만'이 들어있고 금액이 1000~9000이면 10배
-  if (amount >= 1000 && amount < 10000 && /만/.test(t)) {
-    amount *= 10;
-  }
-
-  // ---------- ✅ 반환 ----------
   return { name: cleanName(before), amount, note: '' };
 }
+
 
 
 
@@ -524,4 +538,4 @@ function scrollToBottom(){ setTimeout(()=>{ const wrap=document.getElementById('
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
 
 
-document.getElementById("test").textContent = "1105!";
+document.getElementById("test").textContent = "1110!";
