@@ -13,7 +13,7 @@
 <body>
 <div id="container" class="container">
   <div class="header">
-    <div class="h-title" id="test">간편 음성 금액 기록기</div>
+    <div class="h-title">간편 음성 금액 기록기</div>
     <div class="btn_wrap">
       <button id="exportBtn" title="엑셀로 저장" class="save-icon"><img src='img/excel-icon.png'></button>
     </div>
@@ -38,18 +38,18 @@
       <div class="small">실시간 입력/수정 가능 — 말 한 번으로 이름+금액 입력</div>
       <div class="small" id="statusHint">저장된 항목: 0</div>
     </div>
-
-    <div id="tableWrap" class="table-wrap">
-      <table id="mainTable" aria-label="기록표">
-        <thead>
-          <tr><th>#</th><th>이름</th><th class="amount">금액</th><th>비고</th><th class="actions">관리</th></tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+    <div class="table_container" id="tableContainer">
+      <div id="tableWrap" class="table-wrap">
+        <table id="mainTable" aria-label="기록표">
+          <thead>
+            <tr><th>#</th><th>이름</th><th class="amount">금액</th><th>비고</th><th class="actions">관리</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
     </div>
-
     <!-- controls fixed -->
-    <div class="controls-fixed" style="margin-top:8px">
+    <div class="controls-fixed">
       <div class="controls-left">
         <button id="voiceBtn" class="control-button voice">음성입력</button>
         <button id="manualBtn" class="control-button manual">직접입력</button>

@@ -2,7 +2,8 @@
   --bg:#071028; --card:#0b1220; --accent:#06b6d4; --muted:rgba(255,255,255,0.12); --text:#e6eef6;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR","Apple SD Gothic Neo",Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,#02111a,#071028);color:var(--text);-webkit-font-smoothing:antialiased}
+html{scroll-behavior: smooth;}
+html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR","Apple SD Gothic Neo",Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,#02111a,#071028);color:var(--text);-webkit-font-smoothing:antialiased; overscroll-behavior: none}
 .container{max-width:900px;margin:0 auto;padding:14px;display:flex;flex-direction:column;min-height:100vh;gap:12px}
 .header{display:flex;align-items:center;justify-content:space-between; height: 40px;}
 .h-title{font-size:18px;font-weight:700}
@@ -13,15 +14,16 @@ html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Not
 .btn{padding:12px 18px;border-radius:12px;border:none;font-size:16px}
 .btn.primary{background:var(--accent);color:#012}
 .btn.ghost{background:transparent;border:1px solid var(--muted);color:var(--text)}
-.app{display:none;flex-direction:column;gap:8px;height:100%}
-.controls-fixed{position:fixed;bottom:12px;z-index:40;display:flex;gap:8px;align-items:center;justify-content:space-between; width: 100%; bottom:0; left:0; padding: 8px;}
+.app{display:none;flex-direction:column;gap:14px;height:100%; flex-grow: 1;}
+.controls-fixed{position:sticky;bottom:12px;z-index:40;display:flex;gap:8px;align-items:center;justify-content:space-between}
 .controls-left{display:flex;gap:8px;flex:1}
 .controls-right{display:flex;gap:8px;align-items:center}
 .control-button{padding:12px;border-radius:12px;border:none}
 .control-button.voice{background:linear-gradient(180deg,var(--accent),#08aeb8);color:#012}
 .control-button.manual{background:transparent;border:1px solid var(--muted);color:var(--text)}
 .sum-box{background:rgba(255,255,255,0.03);padding:10px 12px;border-radius:12px;font-weight:700;min-width:120px;text-align:center}
-.table-wrap{flex:1;overflow:auto;background:rgba(255,255,255,0.02);border-radius:12px;padding:2px;max-height:calc(100vh - 170px)}
+.table_container {overflow:auto; height: calc(100vh - 137px);}
+.table-wrap{background:rgba(255,255,255,0.02);border-radius:12px;padding:2px;}
 table{width:100%;border-collapse:collapse}
 th{text-align:center;}
 th,td{padding:6px;border-bottom:1px solid rgba(255,255,255,0.03);font-size:15px}

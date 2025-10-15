@@ -38,7 +38,7 @@ function loadStorage(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r
 function clearStorage(){ localStorage.removeItem(STORAGE_KEY); entries=[]; updateUI(); showToast('데이터 초기화됨'); }
 
 function showHome(){ home.style.display='flex'; app.style.display='none'; }
-function showApp(){ home.style.display='none'; app.style.display='flex'; container.classList.add('open'); updateUI(); scrollToBottom(); }
+function showApp(){ home.style.display='none'; app.style.display='flex'; container.classList.add('open'); updateUI(); /* scrollToBottom(); */ }
 
 function showModal(el){ el.classList.add('show'); el.setAttribute('aria-hidden','false'); }
 function hideModal(el){ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); }
@@ -139,7 +139,7 @@ function openInlineEdit(idx, field){
     } else {
       entries[idx][field] = v;
     }
-    saveStorage(); updateUI(); scrollToBottom();
+    saveStorage(); updateUI(); //scrollToBottom();
   }
   function cancel(){
     if(committed) return; td.innerHTML = originalHtml;
@@ -496,7 +496,14 @@ function parseKoreanMoney(input){
 
 /* Utility */
 function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function scrollToBottom(){ setTimeout(()=>{ const wrap=document.getElementById('tableWrap'); if(wrap) wrap.scrollTop = wrap.scrollHeight; },120); }
+function scrollToBottom(){ 
+  setTimeout(() => { 
+    const wrap = document.getElementById('tableContainer');
+    if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: 'smooth' });
+  },120); 
+}
+
+
 
 /* init */
 (function init(){
