@@ -22,7 +22,7 @@ html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Not
 .control-button.voice{background:linear-gradient(180deg,var(--accent),#08aeb8);color:#012}
 .control-button.manual{background:transparent;border:1px solid var(--muted);color:var(--text)}
 .sum-box{background:rgba(255,255,255,0.03);padding:10px 12px;border-radius:12px;font-weight:700;min-width:120px;text-align:center}
-.table_container {overflow:auto; height: calc(100vh - 137px);}
+.table_container {overflow:auto; height: calc(100dvh - 137px);}
 .table-wrap{background:rgba(255,255,255,0.02);border-radius:12px;padding:2px;}
 table{width:100%;border-collapse:collapse}
 th{text-align:center;}
