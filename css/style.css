@@ -4,7 +4,7 @@
 *{box-sizing:border-box}
 html{scroll-behavior: smooth;}
 html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR","Apple SD Gothic Neo",Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,#02111a,#071028);color:var(--text);-webkit-font-smoothing:antialiased; overscroll-behavior: none}
-.container{max-width:900px;margin:0 auto;padding:14px;display:flex;flex-direction:column;min-height:100vh;gap:12px}
+.container{max-width:900px;margin:0 auto;padding:14px;display:flex;flex-direction:column;height:100dvh;gap:12px}
 .header{display:flex;align-items:center;justify-content:space-between; height: 40px;}
 .h-title{font-size:18px;font-weight:700}
 .header .btn_wrap{display: none;}

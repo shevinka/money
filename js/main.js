@@ -155,12 +155,16 @@ function openInlineEdit(idx, field){
 
 /* ====== Voice input ====== */
 let recognition = null;
-function isSpeechAvailable(){
+let isListening = false;
+let isCanceled = false;
+
+function isSpeechAvailable() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
-function setupSpeech(){
+
+function setupSpeech() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SpeechRecognition) return null;
+  if (!SpeechRecognition) return null;
   const r = new SpeechRecognition();
   r.lang = 'ko-KR';
   r.interimResults = false;
@@ -168,44 +172,50 @@ function setupSpeech(){
   return r;
 }
 
-voiceBtn.addEventListener('click', ()=>{
-  if(!isSpeechAvailable()){
-    alert('이 브라우저는 음성인식을 지원하지 않습니다. (iOS Safari의 경우 제한적일 수 있음)');
+voiceBtn.addEventListener('click', () => {
+  if (!isSpeechAvailable()) {
+    alert('이 브라우저는 음성인식을 지원하지 않습니다. (iOS Safari 권장)');
     return;
   }
+
   recognition = setupSpeech();
-  if(!recognition){ alert('음성 인식 준비 실패'); return; }
+  if (!recognition) {
+    alert('음성 인식 초기화 실패');
+    return;
+  }
+
+  isCanceled = false;
+  isListening = true;
+
   showModal(voiceModal);
   voiceStatus.textContent = '듣는 중... 이름과 금액을 한 번에 말하세요.';
-  try{
+
+  try {
     recognition.start();
-  }catch(e){ console.warn(e); }
+  } catch (e) {
+    console.warn(e);
+  }
 
   recognition.onresult = (ev) => {
+    if (isCanceled) return; // 취소 시 무시
+
     const transcript = ev.results[0][0].transcript.trim();
-    console.log("🎤 음성 인식 결과:", transcript);
+    console.log('🎤 인식 결과:', transcript);
 
-    // 이름 / 금액 파싱
     const parsed = splitNameAndAmount(transcript);
-    console.log("🔍 1차 파싱 결과:", parsed);
+    console.log('🧩 파싱 결과:', parsed);
 
-    // --- 보정 로직 시작 ---
-    // 특수 비고 키워드 (추가하고 싶으면 여기 계속 추가 가능)
-    const remarkKeywords = ['계좌이체','이전전달','이후전달'];
-
-    // 공백 제거한 버전 (띄어쓰기 무시 매칭)
+    // 키워드 검출
+    const remarkKeywords = ['계좌이체', '이전전달', '이후전달', '현금', '카드', '영수증'];
     const norm = transcript.replace(/\s+/g, '');
-
-    // 발견된 비고 키워드 저장용
     let foundRemark = '';
 
-    // 키워드 탐색 (띄어쓰기·분절 허용)
     for (const kw of remarkKeywords) {
       if (norm.includes(kw)) {
         foundRemark = kw;
         break;
       }
-      // 한 글자씩 떨어진 형태도 허용 ("계 좌 이 체" 등)
+      // 중간에 띄어쓰기 있는 경우 대응
       const chars = kw.split('');
       let pos = 0, ok = true;
       for (const ch of chars) {
@@ -219,46 +229,29 @@ voiceBtn.addEventListener('click', ()=>{
       }
     }
 
-    // 기존 파싱 결과 복사
+    // 결과 조합
     let final = {
       name: parsed?.name || '',
       amount: parsed?.amount || 0,
       note: parsed?.note || ''
     };
 
-    // 🎯 비고 키워드가 인식된 경우 보정 처리
     if (foundRemark) {
-      // 이름에서 해당 단어 제거
       final.name = final.name.replace(new RegExp(foundRemark, 'g'), '').trim();
-
-      // 금액이 아주 작거나(1~9원) 0원이면 오인식으로 간주하고 금액=0, 비고 처리
       if (!final.amount || final.amount <= 9) {
         final.amount = 0;
         final.note = foundRemark;
       } else {
-        // 금액이 명확히 큰 경우에는 비고만 추가
         final.note = final.note || foundRemark;
       }
     }
 
-    // 🎯 혹시 여전히 비고 단어가 들어 있는데 금액만 들어온 경우 처리
-    if ((!final.note || final.note === '') && final.amount > 0 && final.amount <= 9) {
-      if (/계좌|이체|계좌이체/.test(norm)) {
-        final.note = '계좌이체';
-        final.amount = 0;
-        final.name = final.name.replace(/계좌|이체|계좌이체/g, '').trim();
-      }
-    }
-
-    console.log("✅ 최종 결과:", final);
-    // --- 보정 로직 끝 ---
-    // 이름 끝에 계좌 관련 단어가 남는 경우 제거 및 비고 처리
+    // 이름에 '계좌' 포함 시 자동 정리
     if (/계좌|이체/.test(final.name)) {
       final.name = final.name.replace(/계좌|이체|계좌이체/g, '').trim();
       if (!final.note) final.note = '계좌이체';
     }
 
-    // 결과 적용
     if (final && final.name) {
       entries.push({
         name: final.name,
@@ -267,13 +260,11 @@ voiceBtn.addEventListener('click', ()=>{
       });
       saveStorage();
       hideModal(voiceModal);
-
-      // 알림 문구
-      const msg = final.note
-        ? `추가: ${final.name} — [${final.note}]`
-        : `추가: ${final.name} — ${final.amount.toLocaleString()}원`;
-
-      showToast(msg);
+      showToast(
+        final.note
+          ? `추가: ${final.name} — [${final.note}]`
+          : `추가: ${final.name} — ${final.amount.toLocaleString()}원`
+      );
       scrollToBottom();
       recognition = null;
     } else {
@@ -282,31 +273,48 @@ voiceBtn.addEventListener('click', ()=>{
     }
   };
 
-
-
-  recognition.onerror = (e)=>{
+  recognition.onerror = (e) => {
+    if (isCanceled) return; // 사용자가 취소한 경우 무시
+    console.warn('🎤 인식 오류:', e);
     hideModal(voiceModal);
     showModal(voiceFailModal);
     recognition = null;
   };
 
-  recognition.onend = ()=>{
-    // if recognition ended without result, show fail modal
-    // (we avoid double-show when onresult handled)
+  recognition.onend = () => {
+    isListening = false;
+    if (!isCanceled && recognition) {
+      // 취소가 아닌 종료일 경우 실패창 표시
+      hideModal(voiceModal);
+      showModal(voiceFailModal);
+    }
+    recognition = null;
   };
 });
 
-voiceCancel.addEventListener('click', ()=>{
-  try{ if(recognition) recognition.stop(); }catch(e){}
-  hideModal(voiceModal);
-  recognition = null;
+// 🔹 취소 버튼 즉시 닫힘
+voiceCancel.addEventListener('click', () => {
+  if (isListening && recognition) {
+    isCanceled = true;
+    recognition.stop();
+    hideModal(voiceModal);
+    recognition = null;
+    console.log('🛑 음성인식 취소');
+  }
 });
 
-voiceFailRetry.addEventListener('click', ()=>{
+// 🔹 실패창 재시도 / 취소
+voiceFailRetry.addEventListener('click', () => {
   hideModal(voiceFailModal);
-  voiceBtn.click(); // reopen
+  voiceBtn.click();
 });
-voiceFailCancel.addEventListener('click', ()=>{ hideModal(voiceFailModal); });
+voiceFailCancel.addEventListener('click', () => {
+  hideModal(voiceFailModal);
+});
+
+
+
+
 
 /* ====== Manual input ====== */
 manualBtn.addEventListener('click', ()=>{
@@ -524,4 +532,3 @@ window.addEventListener('beforeunload', ()=>{ saveStorage(); });
 
 
 
-/* document.getElementById("test").textContent = "1124"; */
