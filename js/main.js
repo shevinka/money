@@ -402,43 +402,57 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
    - If found, extract numeric value via parseKoreanMoney, and name = rest (trim)
 */
 function splitNameAndAmount(text) {
-  if (!text) return { name: '', amount: 0, note: '' };
+  text = text.replace(/\s+/g, ' ').trim(); // 여분 공백 제거
 
-  // 전처리
-  text = text.replace(/\s+/g, '').trim(); // 모든 공백 제거
-  const specialRemarkRegex = /(계좌이체|이전전달|현금|카드)/;
-  const hasRemark = specialRemarkRegex.test(text);
-  const remark = hasRemark ? text.match(specialRemarkRegex)[0] : '';
+  // 1️⃣ "홍길동 계좌이체" 같은 특수 케이스 먼저
+  const specialRemarkRegex = /(계좌이체|이전전달|이후전달)/;
+  const specialMatch = text.match(specialRemarkRegex);
+  if (specialMatch) {
+    const name = text.replace(specialRemarkRegex, '').trim();
+    const remark = specialMatch[1];
+    return { name, amount: 0, remark };
+  }
 
-  // 1️⃣ 한글 금액 단어 (만원, 천원, 백원 등) 탐지
-  const moneyWordRegex = /([0-9,]+원?|[일이삼사오육칠팔구십백천만억]+원?)/;
-  const match = text.match(moneyWordRegex);
+  // 2️⃣ 금액 인식 패턴 (숫자, 한글, 띄어쓰기 포함)
+  const amountRegex = /(\d{1,3}(?:[.,]?\d{3})*|[일이삼사오육칠팔구십백천만억]+)\s*(원|만\s*원|천\s*원|백\s*원)?/;
+  const match = text.match(amountRegex);
 
-  let name = '';
+  if (!match) {
+    return { name: text, amount: 0, remark: '' };
+  }
+
+  // 금액 부분 정리
+  let rawAmount = match[1].replace(/[^\d]/g, '');
+  let unit = match[2] ? match[2].replace(/\s+/g, '') : '';
+
   let amount = 0;
 
-  if (match) {
-    const moneyStr = match[0];
-    const amountPart = moneyStr.replace(/원/g, '');
-    const namePart = text.replace(moneyStr, '').replace(specialRemarkRegex, '');
-
-    name = cleanName(namePart);
-    amount = parseKoreanMoney(amountPart);
+  // 숫자가 포함된 경우
+  if (rawAmount) {
+    amount = parseInt(rawAmount, 10);
+    if (unit.includes('만')) amount *= 10000;
+    else if (unit.includes('천')) amount *= 1000;
+    else if (unit.includes('백')) amount *= 100;
   } else {
-    // 금액 단어가 없으면 remark만 있는 경우 (계좌이체 등)
-    name = text.replace(specialRemarkRegex, '');
-    amount = 0;
+    // 순수 한글 금액 처리 (십오만, 오천 등)
+    const numMap = { 일:1, 이:2, 삼:3, 사:4, 오:5, 육:6, 칠:7, 팔:8, 구:9 };
+    const unitMap = { 십:10, 백:100, 천:1000, 만:10000, 억:100000000 };
+    let temp = 0, total = 0;
+
+    for (const ch of match[1]) {
+      if (numMap[ch]) temp = numMap[ch];
+      else if (unitMap[ch]) {
+        total += (temp || 1) * unitMap[ch];
+        temp = 0;
+      }
+    }
+    total += temp;
+    amount = total;
   }
 
-  // 2️⃣ 천원 단위 보정 (예: "홍길동100" → 1000원)
-  if ((/천/.test(text) && amount < 1000) || (amount < 500 && /[1-9]/.test(text))) {
-    amount = amount * 10;
-  }
-
-  console.log("🎤 인식 결과:", { text, name, amount, remark });
-  return { name, amount, note: remark };
+  const name = text.replace(match[0], '').trim();
+  return { name, amount, remark: '' };
 }
-
 
 
 
@@ -529,6 +543,7 @@ function scrollToBottom(){
 
 /* If user navigates away, save (safety) */
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
+
 
 
 
