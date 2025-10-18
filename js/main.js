@@ -349,50 +349,119 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
       return;
     }
 
-
-     // 표 데이터 수집 (삭제 버튼 칸 제외)
+    // 🔹 표 데이터 수집 (삭제 버튼 칸 제외)
     const rows = Array.from(table.querySelectorAll("tr")).map(tr => {
       const cells = Array.from(tr.querySelectorAll("th, td"));
-      // 🔽 마지막 칸(삭제 버튼)이면 제외
-      cells.pop();
+      cells.pop(); // 마지막(삭제 버튼) 칸 제거
       return cells.map(td => td.innerText.trim());
     });
 
-    // 엑셀 시트 생성
+    // 🔹 첫 행(제목)과 본문 분리
+    const header = rows[0];
+    const body = rows.slice(1);
+
+    // 🔹 '원' 제거 및 금액을 숫자로 변환
+    const cleanBody = body.map(row => {
+      const newRow = [...row];
+      const amountIndex = 2; // 0:번호, 1:이름, 2:금액, 3:비고
+      const noteIndex = 3;
+
+      // 금액 숫자 변환
+      const num = Number(newRow[amountIndex].replace(/[^\d.-]/g, ""));
+      newRow[amountIndex] = isNaN(num) ? 0 : num;
+
+      // 비고 열은 12자 정도 표시
+      newRow[noteIndex] = newRow[noteIndex].slice(0, 12);
+      return newRow;
+    });
+
+    // 🔹 합계행 추가 (수식)
+    const totalRowIndex = cleanBody.length + 1; // 실제로 엑셀에서는 1-based
+    const totalRow = ["", "합계", { f: `SUM(C2:C${totalRowIndex})` }, ""];
+
+    // 🔹 전체 데이터 병합
+    const allRows = [header, ...cleanBody, totalRow];
+
+    // 🔹 시트 생성
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const ws = XLSX.utils.aoa_to_sheet(allRows);
+
+    // 🔹 스타일 및 서식 적용
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+
+    // 제목행 스타일 (진한 노란색)
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (!ws[cellAddr]) continue;
+      ws[cellAddr].s = {
+        fill: { fgColor: { rgb: "FFD966" } }, // 진한 노란색
+        font: { bold: true },
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "thin", color: { rgb: "999999" } },
+          bottom: { style: "thin", color: { rgb: "999999" } },
+        },
+      };
+    }
+
+    // 열 너비 설정
+    ws["!cols"] = [
+      { wch: 6 },   // 번호
+      { wch: 16 },  // 이름
+      { wch: 14 },  // 금액
+      { wch: 20 },  // 비고
+    ];
+
+    // 금액 칸 숫자 서식 적용
+    for (let R = 1; R <= cleanBody.length; R++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: R, c: 2 }); // C열
+      const cell = ws[cellAddr];
+      if (cell && typeof cell.v === "number") {
+        cell.t = "n"; // 숫자 타입
+        cell.z = "#,##0"; // 천 단위 구분
+      }
+    }
+
+    // 🔹 합계행 스타일 (연한 노란색)
+    const totalRowNum = cleanBody.length + 1;
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: totalRowNum, c: C });
+      const cell = ws[addr];
+      if (!cell) continue;
+      cell.s = {
+        fill: { fgColor: { rgb: "FFF2CC" } }, // 연한 노란색
+        font: { bold: true },
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "thin", color: { rgb: "999999" } },
+          bottom: { style: "thin", color: { rgb: "999999" } },
+        },
+      };
+      if (C === 2) cell.z = "#,##0"; // 금액 서식
+    }
+
+    // 🔹 자동 필터(정렬)는 합계행을 제외한 범위만 적용
+    const autofilterRange = XLSX.utils.encode_range(
+      { r: 0, c: 0 }, // A1
+      { r: cleanBody.length, c: range.e.c } // 마지막 데이터 행까지만
+    );
+    ws["!autofilter"] = { ref: autofilterRange };
+
+    // 🔹 시트 추가
     XLSX.utils.book_append_sheet(wb, ws, "기록표");
 
-    // 파일명 자동 생성
-    const filename = "sheet_" + new Date().toISOString().slice(0,10) + ".xlsx";
+    // 🔹 파일명 자동 생성
+    const filename = "sheet_" + new Date().toISOString().slice(0, 10) + ".xlsx";
 
-    // 바이너리 → Blob 변환
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-
-    // 🔗 직접 링크 생성
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-
-    // iOS 호환: 사용자 동작 내에서 명시적으로 클릭
-    document.body.appendChild(link);
-    link.click();
-
-    // 메모리 해제
-    setTimeout(() => {
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    }, 500);
-
-    //alert("📁 다운로드가 시작되었습니다.\n\n'파일' 앱 → '다운로드' 폴더에서 확인하세요.");
+    // 🔹 파일 다운로드
+    XLSX.writeFile(wb, filename);
 
   } catch (err) {
     console.error("엑셀 저장 오류:", err);
     alert("엑셀 파일 저장 중 오류가 발생했습니다.");
   }
 });
+
 
 
 /* ====== Helpers: parsing ====== */
@@ -543,7 +612,6 @@ function scrollToBottom(){
 
 /* If user navigates away, save (safety) */
 window.addEventListener('beforeunload', ()=>{ saveStorage(); });
-
 
 
 
